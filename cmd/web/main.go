@@ -3,11 +3,11 @@ package main
 import (
 	"database/sql"
 	"flag"
-	"github.com/danilgolutvo/code-snippetbox/internal/models"
 	_ "github.com/lib/pq"
 	"log"
 	"net/http"
 	"os"
+	"snippetboxmod/internal/models"
 )
 
 type application struct {
