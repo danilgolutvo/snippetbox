@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"flag"
 	_ "github.com/lib/pq"
+	"html/template"
 	"log"
 	"net/http"
 	"os"
@@ -11,9 +12,10 @@ import (
 )
 
 type application struct {
-	errorLog *log.Logger
-	infoLog  *log.Logger
-	snippets *models.SnippetModel
+	errorLog      *log.Logger
+	infoLog       *log.Logger
+	snippets      *models.SnippetModel
+	templateCache map[string]*template.Template
 }
 
 func openDB(dsn string) (*sql.DB, error) {
@@ -32,7 +34,7 @@ func main() {
 	addr := flag.String("addr", ":4000", "http service address")
 	flag.Parse()
 
-	dsn := flag.String("postgres", "postgres://web:pass@localhost:5432/snippetbox?sslmode=disable", "MySQL data source name")
+	dsn := flag.String("postgres", "postgres://postgres:mysecretpassword@localhost:5432/postgres?sslmode=disable", "MySQL data source name")
 
 	infolog := log.New(os.Stdout, "INFO\t", log.Ldate|log.Ltime)
 	errorlog := log.New(os.Stderr, "ERROR\t", log.Ldate|log.Ltime|log.Lshortfile)
@@ -44,10 +46,16 @@ func main() {
 
 	defer db.Close()
 
+	templateCache, err := newTemplateCache()
+	if err != nil {
+		errorlog.Fatal(err)
+	}
+
 	app := &application{
-		errorLog: errorlog,
-		infoLog:  infolog,
-		snippets: &models.SnippetModel{DB: db},
+		errorLog:      errorlog,
+		infoLog:       infolog,
+		snippets:      &models.SnippetModel{DB: db},
+		templateCache: templateCache,
 	}
 
 	srv := &http.Server{
