@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"flag"
+	"github.com/go-playground/form/v4"
 	_ "github.com/lib/pq"
 	"html/template"
 	"log"
@@ -16,6 +17,7 @@ type application struct {
 	infoLog       *log.Logger
 	snippets      *models.SnippetModel
 	templateCache map[string]*template.Template
+	formDecoder   *form.Decoder
 }
 
 func openDB(dsn string) (*sql.DB, error) {
@@ -46,6 +48,8 @@ func main() {
 
 	defer db.Close()
 
+	formDecoder := form.NewDecoder()
+
 	templateCache, err := newTemplateCache()
 	if err != nil {
 		errorlog.Fatal(err)
@@ -56,6 +60,7 @@ func main() {
 		infoLog:       infolog,
 		snippets:      &models.SnippetModel{DB: db},
 		templateCache: templateCache,
+		formDecoder:   formDecoder,
 	}
 
 	srv := &http.Server{
