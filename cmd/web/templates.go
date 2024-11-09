@@ -2,13 +2,18 @@ package main
 
 import (
 	"html/template"
+	"io/fs"
 	"path/filepath"
 	"snippetboxmod/internal/models"
+	"snippetboxmod/ui"
 	"time"
 )
 
 func humanDate(t time.Time) string {
-	return t.Format("02 January 2006 at 15:04")
+	if t.IsZero() {
+		return ""
+	}
+	return t.UTC().Format("02 Jan 2006 at 15:04")
 }
 
 var functions = template.FuncMap{
@@ -27,25 +32,25 @@ type templateData struct {
 
 func newTemplateCache() (map[string]*template.Template, error) {
 	cache := map[string]*template.Template{}
-	pages, err := filepath.Glob("./ui/html/pages/*.tmpl")
+	pages, err := fs.Glob(ui.Files, "html/pages/*.tmpl")
 	if err != nil {
 		return nil, err
 	}
 
 	for _, page := range pages {
 		name := filepath.Base(page)
-		ts, err := template.New(name).Funcs(functions).ParseFiles("./ui/html/base.tmpl")
+
+		patterns := []string{
+			"html/base.tmpl",
+			"html/partials/*.tmpl",
+			"html/pages/" + name,
+		}
+
+		ts, err := template.New(name).Funcs(functions).ParseFS(ui.Files, patterns...)
 		if err != nil {
 			return nil, err
 		}
-		ts, err = ts.ParseGlob("./ui/html/partials/*.tmpl")
-		if err != nil {
-			return nil, err
-		}
-		ts, err = ts.ParseFiles("./ui/html/pages/" + name)
-		if err != nil {
-			return nil, err
-		}
+
 		cache[name] = ts
 	}
 	return cache, nil
