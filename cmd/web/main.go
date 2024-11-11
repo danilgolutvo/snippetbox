@@ -24,6 +24,7 @@ type application struct {
 	formDecoder    *form.Decoder
 	sessionManager *scs.SessionManager
 	users          models.UserModelInterface
+	debug          bool
 }
 
 func openDB(dsn string) (*sql.DB, error) {
@@ -38,6 +39,8 @@ func openDB(dsn string) (*sql.DB, error) {
 }
 
 func main() {
+
+	debug := flag.Bool("debug", false, "debug mode")
 
 	addr := flag.String("addr", ":4000", "http service address")
 	flag.Parse()
@@ -72,6 +75,7 @@ func main() {
 		formDecoder:    formDecoder,
 		sessionManager: sessionManager,
 		users:          &models.UserModel{DB: db},
+		debug:          *debug,
 	}
 	tlsConfig := &tls.Config{
 		CurvePreferences: []tls.CurveID{tls.X25519, tls.CurveP256},
