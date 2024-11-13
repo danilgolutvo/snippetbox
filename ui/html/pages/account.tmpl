@@ -1,0 +1,24 @@
+{{define "title"}}Account #{{.User.ID}}{{end}}
+
+{{define "main"}}
+    {{with .User}}
+    <table>
+        <tr>
+            <td>Name</a></td>
+            <td>{{ .Name}}</td>
+        </tr>
+        <tr>
+             <td>Email</a></td>
+             <td>{{ .Email}}</td>
+        </tr>
+        <tr>
+             <td>Joined</a></td>
+             <td>{{humanDate .Created}}</td>
+        </tr>
+        <tr>
+                     <th>Password</th>
+                     <td><a href="/account/password/update">Change password</a></td>
+        </tr>
+        {{end}}
+    </table>
+{{end}}

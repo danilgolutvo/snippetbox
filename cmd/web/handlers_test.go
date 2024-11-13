@@ -197,3 +197,82 @@ func TestUserSignup(t *testing.T) {
 		})
 	}
 }
+
+func TestSnippetCreateAuthenticated(t *testing.T) {
+	app := newTestApp(t)
+	ts := newTestServer(t, app.routes())
+	defer ts.Close()
+
+	_, _, body := ts.get(t, "/user/login")
+	validCSRFToken := extractCSRFToken(t, body)
+
+	const (
+		validPassword = "pa$$word"
+		validEmail    = "alice@example.com"
+		formTag       = "<form action='/snippet/create' method='POST'>"
+	)
+	tests := []struct {
+		name         string
+		userEmail    string
+		userPassword string
+		csrfToken    string
+		wantCode     int
+		wantFormTag  string
+	}{
+		{
+			name:         "Authenticated",
+			userEmail:    validEmail,
+			userPassword: validPassword,
+			csrfToken:    validCSRFToken,
+			wantCode:     http.StatusOK,
+			wantFormTag:  formTag,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			form := url.Values{}
+			form.Add("email", tt.userEmail)
+			form.Add("password", tt.userPassword)
+			form.Add("csrf_token", tt.csrfToken)
+
+			ts.postForm(t, "/user/login", form)
+
+			code, _, body := ts.get(t, "/snippet/create")
+
+			assert.Equal(t, code, tt.wantCode)
+
+			if tt.wantFormTag != "" {
+				myassert.StringContains(t, body, tt.wantFormTag)
+			}
+		})
+	}
+}
+func TestSnippetCreateUnauthenticated(t *testing.T) {
+	app := newTestApp(t)
+	ts := newTestServer(t, app.routes())
+	defer ts.Close()
+
+	tests := []struct {
+		name        string
+		wantCode    int
+		wantAddress string
+	}{
+		{
+			name:        "Unauthenticated",
+			wantCode:    http.StatusSeeOther,
+			wantAddress: "/user/login",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			code, headers, _ := ts.get(t, "/snippet/create")
+
+			assert.Equal(t, code, tt.wantCode)
+
+			assert.Equal(t, headers.Get("Location"), "/user/login")
+		})
+	}
+}

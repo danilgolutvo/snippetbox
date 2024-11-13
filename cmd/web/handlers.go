@@ -27,6 +27,12 @@ type userLoginForm struct {
 	Password            string `form:"password"`
 	validator.Validator `form:"-"`
 }
+type password struct {
+	CurrentPassword         string `form:"currentPassword"`
+	NewPassword             string `form:"newPassword"`
+	NewPasswordConfirmation string `form:"newPasswordConfirmation"`
+	validator.Validator     `form:"-"`
+}
 
 func (app *application) home(w http.ResponseWriter, r *http.Request) {
 
@@ -44,6 +50,25 @@ func (app *application) home(w http.ResponseWriter, r *http.Request) {
 func (app *application) about(w http.ResponseWriter, r *http.Request) {
 	data := app.newTemplateData(r)
 	app.render(w, http.StatusOK, "about.tmpl", data)
+}
+func (app *application) account(w http.ResponseWriter, r *http.Request) {
+
+	id := app.sessionManager.GetInt(r.Context(), "authenticatedUserID")
+
+	user, err := app.users.Get(id)
+	if err != nil {
+		if errors.Is(err, models.ErrNoRecord) {
+			http.Redirect(w, r, "/user/login", http.StatusSeeOther)
+		} else {
+			app.serverError(w, err)
+		}
+		return
+	}
+
+	data := app.newTemplateData(r)
+	data.User = user
+
+	app.render(w, http.StatusOK, "account.tmpl", data)
 }
 
 func (app *application) snippetView(w http.ResponseWriter, r *http.Request) {
@@ -171,6 +196,7 @@ func (app *application) userLoginPost(w http.ResponseWriter, r *http.Request) {
 	if !form.Valid() {
 		data := app.newTemplateData(r)
 		data.Form = form
+
 		app.render(w, http.StatusUnprocessableEntity, "login.tmpl", data)
 		return
 	}
@@ -184,6 +210,7 @@ func (app *application) userLoginPost(w http.ResponseWriter, r *http.Request) {
 
 			data := app.newTemplateData(r)
 			data.Form = form
+
 			app.render(w, http.StatusUnprocessableEntity, "login.tmpl", data)
 		} else {
 			app.serverError(w, err)
@@ -191,21 +218,23 @@ func (app *application) userLoginPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Use the RenewToken() method on the current session to change the session
-	// ID. It's good practice to generate a new session ID when the
-	// authentication state or privilege levels changes for the user (e.g. login
-	// and logout operations).
 	err = app.sessionManager.RenewToken(r.Context())
 	if err != nil {
 		app.serverError(w, err)
 		return
 	}
 
-	// Add the ID of the current user to the session, so that they are now
-	// 'logged in'.
 	app.sessionManager.Put(r.Context(), "authenticatedUserID", id)
 
-	// Redirect the user to the create snippet page.
+	// Use the PopString method to retrieve and remove a value from the session
+	// data in one step. If no matching key exists this will return the empty
+	// string.
+	path := app.sessionManager.PopString(r.Context(), "redirectPathAfterLogin")
+	if path != "" {
+		http.Redirect(w, r, path, http.StatusSeeOther)
+		return
+	}
+
 	http.Redirect(w, r, "/snippet/create", http.StatusSeeOther)
 
 }
@@ -231,4 +260,47 @@ func (app *application) userLogoutPost(w http.ResponseWriter, r *http.Request) {
 }
 func ping(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("OK"))
+}
+
+func (app *application) passwordUpdate(w http.ResponseWriter, r *http.Request) {
+	data := app.newTemplateData(r)
+	data.Form = password{}
+	app.render(w, http.StatusOK, "pass.tmpl", data)
+}
+func (app *application) passwordUpdatePost(w http.ResponseWriter, r *http.Request) {
+	var form password
+	err := app.decodePostForm(r, &form)
+	if err != nil {
+		app.clientError(w, http.StatusBadRequest)
+		return
+	}
+	form.CheckField(validator.NotBlank(form.CurrentPassword), "currentPassword", "Current Password field must not be blank")
+	form.CheckField(validator.NotBlank(form.NewPassword), "newPassword", "New Password field must not be blank")
+	form.CheckField(validator.NotBlank(form.NewPasswordConfirmation), "newPasswordConfirmation", "New Password Confirmation field must not be blank")
+	form.CheckField(validator.MinChars(form.CurrentPassword, 8), "currentPassword", `Password must be at least 8 characters`)
+	form.CheckField(validator.MinChars(form.NewPassword, 8), "newPassword", `Password must be at least 8 characters`)
+	form.CheckField(validator.MinChars(form.NewPasswordConfirmation, 8), "newPasswordConfirmation", `Password must be at least 8 characters`)
+	form.CheckField(validator.ComparePasswords(form.NewPassword, form.NewPasswordConfirmation), "newPasswordConfirmation", `Passwords do not match`)
+	if !form.Valid() {
+		data := app.newTemplateData(r)
+		data.Form = form
+		app.render(w, http.StatusUnprocessableEntity, "pass.tmpl", data)
+		return
+	}
+	id := app.sessionManager.GetInt(r.Context(), "authenticatedUserID")
+	err = app.users.PasswordUpdate(id, form.CurrentPassword, form.NewPassword)
+	if err != nil {
+		if errors.Is(err, models.ErrInvalidCredentials) {
+			form.AddFieldError("currentPassword", "current password is incorrect")
+			data := app.newTemplateData(r)
+			data.Form = form
+			app.render(w, http.StatusUnprocessableEntity, "pass.tmpl", data)
+		} else {
+			app.serverError(w, err)
+		}
+		return
+	}
+	app.sessionManager.Put(r.Context(), "flash", "Your password was successfully changed")
+	http.Redirect(w, r, "/account", http.StatusSeeOther)
+
 }

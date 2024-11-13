@@ -58,3 +58,9 @@ func MinChars(value string, n int) bool {
 func Matches(value string, rx *regexp.Regexp) bool {
 	return rx.MatchString(value)
 }
+func ComparePasswords(newPassword, newPasswordConfirm string) bool {
+	if newPassword != newPasswordConfirm {
+		return false
+	}
+	return true
+}

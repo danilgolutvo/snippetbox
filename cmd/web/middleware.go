@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/justinas/nosurf"
+	"log"
 	"net/http"
 )
 
@@ -41,16 +42,17 @@ func (app *application) recoverPanic(next http.Handler) http.Handler {
 func (app *application) requireAuthentication(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !app.isAuthenticated(r) {
+			redirectPath := r.URL.Path
+			if redirectPath == "" {
+				log.Println("Warning: URL path is empty")
+			}
+			app.sessionManager.Put(r.Context(), "redirectPathAfterLogin", redirectPath)
 			http.Redirect(w, r, "/user/login", http.StatusSeeOther)
 			return
 		}
 
-		// Otherwise set the "Cache-Control: no-store" header so that pages
-		// require authentication are not stored in the users browser cache (or
-		// other intermediary cache).
 		w.Header().Add("Cache-Control", "no-store")
 
-		// And call the next handler in the chain.
 		next.ServeHTTP(w, r)
 	})
 }
